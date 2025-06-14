@@ -9,7 +9,7 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-
+    
     steps:
     - name: Checkout code
       uses: actions/checkout@v2
@@ -24,14 +24,11 @@ jobs:
         sudo apt-get update
         sudo apt-get install -y \
           python3-pip \
-          python3-setuptools \
           build-essential \
           git \
           python3 \
           python3-dev \
           openjdk-11-jdk \
-          zip \
-          unzip \
           zlib1g-dev \
           libncurses5-dev \
           libgdbm-dev \
@@ -41,57 +38,62 @@ jobs:
           libreadline-dev \
           libffi-dev \
           libbz2-dev \
-          liblzma-dev \
-          pkg-config \
           cmake \
-          ninja-build
+          ninja-build \
+          pkg-config \
+          liblzma-dev
 
     - name: Install Python dependencies
       run: |
-        python3 -m pip install --upgrade pip
-        pip install Cython==0.29.33 virtualenv buildozer
+        python3 -m pip install --upgrade pip virtualenv
+        python3 -m pip install cython==0.29.33
+
+    - name: Set up Python-for-Android
+      run: |
+        python3 -m pip install buildozer
+        buildozer init
+        # Modify buildozer.spec as needed (you might want to commit your own version)
+        sed -i 's/#android.accept_sdk_license = False/android.accept_sdk_license = True/' buildozer.spec
+        sed -i 's/#android.ndk_path = .*/android.ndk_path = .\/android\/android-ndk-r25b/' buildozer.spec
+        sed -i 's/#android.sdk_path = .*/android.sdk_path = .\/android\/android-sdk/' buildozer.spec
 
     - name: Download Android SDK and NDK
       run: |
-        mkdir -p android && cd android
-
-        # Download and unpack NDK
+        mkdir -p android
+        cd android
+        # Download Android NDK
         wget https://dl.google.com/android/repository/android-ndk-r25b-linux.zip
         unzip android-ndk-r25b-linux.zip
+        mv android-ndk-r25b android-ndk-r25b
         rm android-ndk-r25b-linux.zip
-
-        # Download and unpack SDK
+        
+        # Download Android SDK
         wget https://dl.google.com/android/repository/commandlinetools-linux-9477386_latest.zip
         unzip commandlinetools-linux-9477386_latest.zip
-        mkdir -p android-sdk/cmdline-tools
-        mv cmdline-tools android-sdk/cmdline-tools/latest
+        mkdir android-sdk
+        mv cmdline-tools android-sdk/cmdline-tools
         rm commandlinetools-linux-9477386_latest.zip
-
+        
         # Set environment variables
-        echo "ANDROID_NDK_HOME=$GITHUB_WORKSPACE/android/android-ndk-r25b" >> $GITHUB_ENV
-        echo "ANDROID_SDK_ROOT=$GITHUB_WORKSPACE/android/android-sdk" >> $GITHUB_ENV
-        echo "$GITHUB_WORKSPACE/android/android-sdk/cmdline-tools/latest/bin" >> $GITHUB_PATH
-        echo "$GITHUB_WORKSPACE/android/android-ndk-r25b" >> $GITHUB_PATH
+        echo "ANDROID_NDK_HOME=$(pwd)/android-ndk-r25b" >> $GITHUB_ENV
+        echo "ANDROID_SDK_ROOT=$(pwd)/android-sdk" >> $GITHUB_ENV
+        echo "PATH=$(pwd)/android-sdk/cmdline-tools/bin:$(pwd)/android-ndk-r25b:$PATH" >> $GITHUB_ENV
 
-    - name: Accept Android SDK Licenses
-      run: yes | sdkmanager --licenses
-
-    - name: Install Android Platform Tools
-      run: sdkmanager "platform-tools" "platforms;android-33" "build-tools;33.0.0"
-
-    - name: Prepare Buildozer Spec
+    - name: Accept Android licenses
       run: |
-        buildozer init || true  # In case buildozer.spec doesn't exist
-        sed -i 's|^#*android.accept_sdk_license *=.*|android.accept_sdk_license = True|' buildozer.spec
-        sed -i 's|^#*android.sdk_path *=.*|android.sdk_path = ./android/android-sdk|' buildozer.spec
-        sed -i 's|^#*android.ndk_path *=.*|android.ndk_path = ./android/android-ndk-r25b|' buildozer.spec
+        yes | $ANDROID_SDK_ROOT/cmdline-tools/bin/sdkmanager --licenses
 
-    - name: Build APK
-      run: buildozer -v android debug
+    - name: Install Android platform tools
+      run: |
+        $ANDROID_SDK_ROOT/cmdline-tools/bin/sdkmanager "platform-tools" "platforms;android-33" "build-tools;33.0.0"
 
-    - name: Upload APK
+    - name: Build APK with Buildozer
+      run: |
+        buildozer -v android debug
+        ls -la bin/
+
+    - name: Upload APK artifact
       uses: actions/upload-artifact@v2
       with:
-        name: kivy-apk
+        name: kivy-app
         path: bin/*.apk
-
