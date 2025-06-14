@@ -2,30 +2,96 @@ name: Build Kivy APK
 
 on:
   push:
-    branches: [main]
-  workflow_dispatch:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
 
 jobs:
-  build-apk:
+  build:
     runs-on: ubuntu-latest
 
     steps:
-      - name:  Checkout Code
-        uses: actions/checkout@v4
+    - name: Checkout code
+      uses: actions/checkout@v2
 
-      - name: Install Dependencies (libtinfo6 for Ubuntu 24.04+)
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libtinfo6
+    - name: Set up JDK 11
+      uses: actions/setup-java@v1
+      with:
+        java-version: '11'
 
-      - name: Build APK with Buildozer
-        uses: digreatbrian/buildozer-action@v2
-        with:
-          python-version: 3.8
-          buildozer-cmd: buildozer -v android debug
+    - name: Install system dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          python3-pip \
+          python3-setuptools \
+          build-essential \
+          git \
+          python3 \
+          python3-dev \
+          openjdk-11-jdk \
+          zip \
+          unzip \
+          zlib1g-dev \
+          libncurses5-dev \
+          libgdbm-dev \
+          libnss3-dev \
+          libssl-dev \
+          libsqlite3-dev \
+          libreadline-dev \
+          libffi-dev \
+          libbz2-dev \
+          liblzma-dev \
+          pkg-config \
+          cmake \
+          ninja-build
 
-      - name: Upload APK Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: kivy-apk
-          path: bin/*.apk
+    - name: Install Python dependencies
+      run: |
+        python3 -m pip install --upgrade pip
+        pip install Cython==0.29.33 virtualenv buildozer
+
+    - name: Download Android SDK and NDK
+      run: |
+        mkdir -p android && cd android
+
+        # Download and unpack NDK
+        wget https://dl.google.com/android/repository/android-ndk-r25b-linux.zip
+        unzip android-ndk-r25b-linux.zip
+        rm android-ndk-r25b-linux.zip
+
+        # Download and unpack SDK
+        wget https://dl.google.com/android/repository/commandlinetools-linux-9477386_latest.zip
+        unzip commandlinetools-linux-9477386_latest.zip
+        mkdir -p android-sdk/cmdline-tools
+        mv cmdline-tools android-sdk/cmdline-tools/latest
+        rm commandlinetools-linux-9477386_latest.zip
+
+        # Set environment variables
+        echo "ANDROID_NDK_HOME=$GITHUB_WORKSPACE/android/android-ndk-r25b" >> $GITHUB_ENV
+        echo "ANDROID_SDK_ROOT=$GITHUB_WORKSPACE/android/android-sdk" >> $GITHUB_ENV
+        echo "$GITHUB_WORKSPACE/android/android-sdk/cmdline-tools/latest/bin" >> $GITHUB_PATH
+        echo "$GITHUB_WORKSPACE/android/android-ndk-r25b" >> $GITHUB_PATH
+
+    - name: Accept Android SDK Licenses
+      run: yes | sdkmanager --licenses
+
+    - name: Install Android Platform Tools
+      run: sdkmanager "platform-tools" "platforms;android-33" "build-tools;33.0.0"
+
+    - name: Prepare Buildozer Spec
+      run: |
+        buildozer init || true  # In case buildozer.spec doesn't exist
+        sed -i 's|^#*android.accept_sdk_license *=.*|android.accept_sdk_license = True|' buildozer.spec
+        sed -i 's|^#*android.sdk_path *=.*|android.sdk_path = ./android/android-sdk|' buildozer.spec
+        sed -i 's|^#*android.ndk_path *=.*|android.ndk_path = ./android/android-ndk-r25b|' buildozer.spec
+
+    - name: Build APK
+      run: buildozer -v android debug
+
+    - name: Upload APK
+      uses: actions/upload-artifact@v2
+      with:
+        name: kivy-apk
+        path: bin/*.apk
+
