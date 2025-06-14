@@ -1,0 +1,56 @@
+name: Kivy App to APK
+
+on:
+  workflow_dispatch:  # allows you to trigger the workflow manually
+
+jobs:
+  build-apk:
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v3
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.8'
+
+      - name: Setup Java 17 (for Buildozer/Gradle)
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Install system dependencies
+        run: |
+          sudo apt update
+          sudo apt install -y git zip unzip openjdk-17-jdk \
+            python3-pip autoconf libtool pkg-config zlib1g-dev \
+            libncurses5-dev libncursesw5-dev libtinfo5 \
+            cmake libffi-dev libssl-dev
+
+      - name: Install Python dependencies
+        run: |
+          python3 -m pip install --upgrade pip
+          pip install Cython==0.29.33 buildozer
+
+      - name: Init Buildozer if missing
+        run: |
+          if [ ! -f buildozer.spec ]; then
+            buildozer init
+          fi
+
+      - name: Build APK
+        run: |
+          buildozer android debug
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: portscanner-apk
+          path: bin/*.apk
