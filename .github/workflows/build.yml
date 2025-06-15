@@ -33,21 +33,18 @@ jobs:
           pip install --user buildozer
 
       - name: Install Python dependencies
-        run: |
-          pip install cython
-
+        run: pip install cython
 
       - name: Set up Android SDK and NDK
-      run: |
-        mkdir -p android/android-sdk/cmdline-tools
-        cd android/android-sdk/cmdline-tools
-        curl -o sdk-tools.zip https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip
-        unzip sdk-tools.zip -d latest
-        rm sdk-tools.zip
-        yes | ./latest/bin/sdkmanager --sdk_root=${{ github.workspace }}/android/android-sdk --licenses
-        ./latest/bin/sdkmanager --sdk_root=${{ github.workspace }}/android/android-sdk \
-          "platform-tools" "platforms;android-31" "build-tools;33.0.2" "ndk;25.1.8937393"
-
+        run: |
+          mkdir -p android/android-sdk/cmdline-tools
+          cd android/android-sdk/cmdline-tools
+          curl -o sdk-tools.zip https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip
+          unzip sdk-tools.zip -d latest
+          rm sdk-tools.zip
+          yes | ./latest/bin/sdkmanager --sdk_root=${{ github.workspace }}/android/android-sdk --licenses
+          ./latest/bin/sdkmanager --sdk_root=${{ github.workspace }}/android/android-sdk \
+            "platform-tools" "platforms;android-31" "build-tools;33.0.2" "ndk;25.1.8937393"
 
       - name: Install Android SDK & NDK
         run: |
