@@ -22,7 +22,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y \
             build-essential autoconf automake libtool libffi-dev pkg-config \
-            zip unzip openjdk-11-jdk git python3-pip ccache
+            zip unzip openjdk-11-jdk git python3-pip ccache libncurses5
 
       - name: Add user base binary to PATH
         run: echo "$HOME/.local/bin" >> $GITHUB_PATH
@@ -30,12 +30,9 @@ jobs:
       - name: Install pip & Buildozer
         run: |
           python3 -m pip install --upgrade pip setuptools wheel
-          pip install --user buildozer
+          pip install --user buildozer cython
 
-      - name: Install Python dependencies
-        run: pip install cython
-
-      - name: Set up Android SDK and NDK
+      - name: Download Android SDK & NDK
         run: |
           mkdir -p android/android-sdk/cmdline-tools
           cd android/android-sdk/cmdline-tools
@@ -43,32 +40,20 @@ jobs:
           unzip sdk-tools.zip -d latest
           rm sdk-tools.zip
 
-      - name: Add Android SDK tools to PATH
+      - name: Accept SDK Licenses & Install Tools
         run: |
-          echo "$GITHUB_WORKSPACE/android/android-sdk/cmdline-tools/latest/bin" >> $GITHUB_PATH
-          echo "$GITHUB_WORKSPACE/android/android-sdk/platform-tools" >> $GITHUB_PATH
-          echo "$GITHUB_WORKSPACE/android/android-ndk-r25b" >> $GITHUB_PATH
-
-      - name: Accept Android SDK Licenses and Install Tools
-        run: |
-          export PATH=$GITHUB_WORKSPACE/android/android-sdk/cmdline-tools/latest/bin:$PATH
-          yes | sdkmanager --sdk_root=${{ github.workspace }}/android/android-sdk --licenses
-          sdkmanager --sdk_root=${{ github.workspace }}/android/android-sdk \
+          export ANDROID_SDK_ROOT=$GITHUB_WORKSPACE/android/android-sdk
+          export PATH=$ANDROID_SDK_ROOT/cmdline-tools/latest/bin:$PATH
+          yes | sdkmanager --licenses
+          sdkmanager --sdk_root=$ANDROID_SDK_ROOT \
             "platform-tools" "platforms;android-31" "build-tools;33.0.2" "ndk;25.1.8937393"
-
-      - name: Download Android NDK separately
-        run: |
-          mkdir -p android && cd android
-          wget https://dl.google.com/android/repository/android-ndk-r25b-linux.zip
-          unzip android-ndk-r25b-linux.zip
-          rm android-ndk-r25b-linux.zip
 
       - name: Fix buildozer.spec for CI paths
         run: |
           buildozer init || true
           sed -i 's|^#*android.accept_sdk_license *=.*|android.accept_sdk_license = True|' buildozer.spec
           sed -i 's|^#*android.sdk_path *=.*|android.sdk_path = ./android/android-sdk|' buildozer.spec
-          sed -i 's|^#*android.ndk_path *=.*|android.ndk_path = ./android/android-ndk-r25b|' buildozer.spec
+          sed -i 's|^#*android.ndk_path *=.*|android.ndk_path = ./android/android-sdk/ndk/25.1.8937393|' buildozer.spec
 
       - name: Build APK
         run: ~/.local/bin/buildozer android debug
@@ -76,5 +61,5 @@ jobs:
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: kivy-app-apk
+          name: kivy-debug-apk
           path: bin/*.apk
